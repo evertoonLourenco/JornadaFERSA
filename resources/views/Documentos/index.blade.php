@@ -38,7 +38,7 @@
                 <p class="text-xs text-gray-400 mt-1">Consulte e gerencie manuais, fichas técnicas, catálogos e aplicações homologadas FERSA.</p>
             </div>
 
-            <!-- BOTÕES DE AÇÃO ADMINISTRATIVA (ADMIN GERAL OU PERMISSÃO NO MÓDULO) -->
+            <!-- BOTÕES DE AÇÃO ADMINISTRATIVA -->
             @if(auth()->check() && (auth()->user()->isSuperAdmin() || auth()->user()->pode('documentos', 'admin')))
                 <div class="flex flex-wrap items-center gap-2">
                     <button onclick="toggleModal('modalNovaCategoria')" class="bg-white/5 hover:bg-white/10 text-white text-xs font-bold py-2 px-3 rounded-xl border border-white/10 transition">
@@ -65,6 +65,14 @@
             <div class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs rounded-xl p-4 flex items-center gap-3">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                 <span>{{ session('success') }}</span>
+            </div>
+        @endif
+
+        @if ($errors->any())
+            <div class="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs rounded-xl p-4 space-y-1">
+                @foreach ($errors->all() as $error)
+                    <p>⚠️ {{ $error }}</p>
+                @endforeach
             </div>
         @endif
 
@@ -138,8 +146,10 @@
                                     {{ \Carbon\Carbon::parse($doc->updated_at)->format('d/m/Y H:i') }}
                                 </td>
                                 <td class="py-4 px-5 text-right">
-                                    <a href="{{ asset('storage/' . $doc->arquivo) }}" target="_blank" class="p-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-400/20 transition inline-block">
-                                        Download
+                                    <a href="{{ route('documentos.download', $doc->id) }}" 
+                                    class="p-2 rounded-lg text-xs font-semibold bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/40 transition flex items-center gap-1"
+                                    title="Fazer Download">
+                                        <span>Download</span>
                                     </a>
                                 </td>
                             </tr>
@@ -164,183 +174,473 @@
         </div>
     </main>
 
-    <!-- MODAIS DE CADASTRO (LIBERADOS PARA SUPER ADMIN OU GESTORES DE DOCUMENTOS) -->
+    <!-- MODAIS DE CADASTRO -->
     @if(auth()->check() && (auth()->user()->isSuperAdmin() || auth()->user()->pode('documentos', 'admin')))
 
-        <!-- MODAL: NOVA CATEGORIA -->
+        <!-- MODAL: GERENCIAR CATEGORIAS -->
         <div id="modalNovaCategoria" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-            <div class="bg-[#0c182e] border border-white/15 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div class="bg-[#0c182e] border border-white/15 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
                 <div class="p-5 border-b border-white/10 flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-white flex items-center gap-2">🏷️ Nova Categoria</h3>
-                    <button onclick="toggleModal('modalNovaCategoria')" class="text-gray-400 hover:text-white">&times;</button>
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">🏷️ Gerenciar Categorias</h3>
+                    <button type="button" onclick="toggleModal('modalNovaCategoria')" class="text-gray-400 hover:text-white">&times;</button>
                 </div>
-                <form action="{{ route('categorias.store') }}" method="POST" class="p-5 space-y-4">
-                    @csrf
-                    <div>
-                        <label class="block text-xs font-bold text-gray-300 mb-1">Nome da Categoria *</label>
-                        <input type="text" name="nome" required placeholder="Ex: Manuais Técnicos, Fichas de Aplicação..." class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
+
+                <div class="p-5 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+                    <form action="{{ route('categorias.store') }}" method="POST" class="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
+                        @csrf
+                        <div>
+                            <label class="block text-xs font-bold text-gray-300 mb-1">Nome da Categoria *</label>
+                            <input type="text" name="nome" required placeholder="Ex: Manuais Técnicos" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-300 mb-1">Descrição</label>
+                            <textarea name="descricao" rows="2" placeholder="Descrição opcional..." class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400 resize-none"></textarea>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#091322] font-extrabold text-xs">
+                                Salvar Categoria
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-gray-300">Categorias Cadastradas ({{ count($categorias ?? []) }})</h4>
+                        @foreach($categorias ?? [] as $categoriaItem)
+                            <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center justify-between gap-3 {{ isset($categoriaItem->ativo) && !$categoriaItem->ativo ? 'opacity-50' : '' }}">
+                                <div class="min-w-0">
+                                    <h5 class="text-xs font-bold text-white truncate">{{ $categoriaItem->nome }}</h5>
+                                    <p class="text-[11px] text-gray-400 truncate">{{ $categoriaItem->descricao ?? 'Sem descrição' }}</p>
+                                </div>
+                                
+                                <div class="flex items-center gap-1.5 flex-shrink-0">
+                                    <form action="{{ route('categorias.toggle', $categoriaItem->id) }}" method="POST">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="px-2.5 py-1 rounded-lg text-xs font-bold transition {{ ($categoriaItem->ativo ?? true) ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' }}">
+                                            {{ ($categoriaItem->ativo ?? true) ? '🔴 Desligar' : '🟢 Ligar' }}
+                                        </button>
+                                    </form>
+
+                                    <form action="{{ route('categorias.destroy', $categoriaItem->id) }}" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir a categoria {{ $categoriaItem->nome }}?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="p-1.5 rounded-lg text-xs font-bold bg-rose-600/20 text-rose-400 border border-rose-500/30 hover:bg-rose-600/40 transition" title="Excluir Categoria">
+                                            🗑️
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        @endforeach
                     </div>
-                    <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-                        <button type="button" onclick="toggleModal('modalNovaCategoria')" class="px-4 py-2 rounded-xl text-xs font-bold text-gray-400 hover:text-white">Cancelar</button>
-                        <button type="submit" class="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#091322] font-extrabold text-xs">Salvar</button>
-                    </div>
-                </form>
+                </div>
+
+                <div class="p-4 border-t border-white/10 flex justify-end">
+                    <button type="button" onclick="toggleModal('modalNovaCategoria')" class="px-4 py-2 text-xs font-bold text-gray-400 hover:text-white">Fechar</button>
+                </div>
             </div>
         </div>
 
-        <!-- MODAL: NOVO FABRICANTE -->
+        <!-- MODAL: GERENCIAR FABRICANTES -->
         <div id="modalNovoFabricante" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-            <div class="bg-[#0c182e] border border-white/15 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div class="bg-[#0c182e] border border-white/15 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
                 <div class="p-5 border-b border-white/10 flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-white flex items-center gap-2">🏭 Novo Fabricante</h3>
-                    <button onclick="toggleModal('modalNovoFabricante')" class="text-gray-400 hover:text-white">&times;</button>
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">🏭 Gerenciar Fabricantes</h3>
+                    <button type="button" onclick="toggleModal('modalNovoFabricante')" class="text-gray-400 hover:text-white">&times;</button>
                 </div>
-                <form action="{{ route('fabricantes.store') }}" method="POST" class="p-5 space-y-4">
-                    @csrf
-                    <div>
-                        <label class="block text-xs font-bold text-gray-300 mb-1">Nome do Fabricante *</label>
-                        <input type="text" name="nome" required placeholder="Ex: Scania, Volvo, Mercedes-Benz..." class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
+
+                <div class="p-5 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+                    <form action="{{ route('fabricantes.store') }}" method="POST" class="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
+                        @csrf
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Nome do Fabricante *</label>
+                                <input type="text" name="nome" required placeholder="Ex: Bosch, Mahle, SKF..." class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Categoria Vinculada *</label>
+                                <select name="categoria_id" required class="w-full bg-[#0c182e] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                                    <option value="" disabled selected>Selecione uma categoria...</option>
+                                    @foreach($categoriasAtivas ?? ($categorias ?? []) as $catAtiva)
+                                        <option value="{{ $catAtiva->id }}">{{ $catAtiva->nome }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex justify-end pt-1">
+                            <button type="submit" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#091322] font-extrabold text-xs">
+                                Salvar Fabricante
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-gray-300">Fabricantes Ativos ({{ count($fabricantes ?? []) }})</h4>
+                        @forelse($fabricantes ?? [] as $fab)
+                            <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center justify-between gap-3 {{ isset($fab->ativo) && !$fab->ativo ? 'opacity-50' : '' }}">
+                                <div class="min-w-0">
+                                    <h5 class="text-xs font-bold text-white truncate">{{ $fab->nome }}</h5>
+                                    <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 mt-1">
+                                        📁 {{ $fab->categoria->nome ?? 'Sem Categoria' }}
+                                    </span>
+                                </div>
+
+                                <div class="flex items-center gap-1.5 flex-shrink-0">
+                                    <form action="{{ route('fabricantes.toggle', $fab->id) }}" method="POST">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="px-2.5 py-1 rounded-lg text-xs font-bold transition {{ ($fab->ativo ?? true) ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' }}">
+                                            {{ ($fab->ativo ?? true) ? '🔴 Desligar' : '🟢 Ligar' }}
+                                        </button>
+                                    </form>
+
+                                    <form action="{{ route('fabricantes.destroy', $fab->id) }}" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir o fabricante {{ $fab->nome }}?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="p-1.5 rounded-lg text-xs font-bold bg-rose-600/20 text-rose-400 border border-rose-500/30 hover:bg-rose-600/40 transition" title="Excluir Fabricante">
+                                            🗑️
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="p-4 bg-white/5 rounded-xl text-center text-xs text-gray-400 border border-white/10">
+                                Nenhum fabricante cadastrado.
+                            </div>
+                        @endforelse
                     </div>
-                    <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-                        <button type="button" onclick="toggleModal('modalNovoFabricante')" class="px-4 py-2 rounded-xl text-xs font-bold text-gray-400 hover:text-white">Cancelar</button>
-                        <button type="submit" class="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#091322] font-extrabold text-xs">Salvar</button>
-                    </div>
-                </form>
+                </div>
+
+                <div class="p-4 border-t border-white/10 flex justify-end">
+                    <button type="button" onclick="toggleModal('modalNovoFabricante')" class="px-4 py-2 text-xs font-bold text-gray-400 hover:text-white">Fechar</button>
+                </div>
             </div>
         </div>
 
-        <!-- MODAL: NOVO MODELO -->
+        <!-- MODAL: GERENCIAR MODELOS -->
         <div id="modalNovoModelo" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-            <div class="bg-[#0c182e] border border-white/15 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div class="bg-[#0c182e] border border-white/15 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
                 <div class="p-5 border-b border-white/10 flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-white flex items-center gap-2">🚚 Novo Modelo</h3>
-                    <button onclick="toggleModal('modalNovoModelo')" class="text-gray-400 hover:text-white">&times;</button>
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">🚚 Gerenciar Modelos</h3>
+                    <button type="button" onclick="toggleModal('modalNovoModelo')" class="text-gray-400 hover:text-white">&times;</button>
                 </div>
-                <form action="{{ route('modelos.store') }}" method="POST" class="p-5 space-y-4">
-                    @csrf
-                    <div>
-                        <label class="block text-xs font-bold text-gray-300 mb-1">Fabricante *</label>
-                        <select name="fabricante_id" required class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
-                            <option value="">Selecione um Fabricante</option>
-                            @foreach($fabricantes ?? [] as $fab)
-                                <option value="{{ $fab->id }}">{{ $fab->nome }}</option>
-                            @endforeach
-                        </select>
+
+                <div class="p-5 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+                    <!-- Form Cadastro de Modelo -->
+                    <form action="{{ route('modelos.store') }}" method="POST" class="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
+                        @csrf
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <!-- Categoria -->
+                            <div>
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Categoria <span class="text-rose-400">*</span></label>
+                                <select name="categoria_id" id="mod_categoria_id" onchange="filtrarFabricantesModelo()" required class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                                    <option value="" disabled selected>Selecione a categoria...</option>
+                                    @foreach($categoriasAtivas ?? ($categorias ?? []) as $categoria)
+                                        <option value="{{ $categoria->id }}">{{ $categoria->nome }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <!-- Fabricante -->
+                            <div>
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Fabricante <span class="text-rose-400">*</span></label>
+                                <select name="fabricante_id" id="mod_fabricante_id" required disabled class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400 disabled:opacity-50">
+                                    <option value="" disabled selected>Selecione a categoria primeiro...</option>
+                                    @foreach($fabricantes ?? [] as $fab)
+                                        <option value="{{ $fab->id }}" data-categoria="{{ $fab->categoria_id ?? '' }}" class="hidden">{{ $fab->nome }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <!-- Nome / Modelo -->
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Nome / Código do Modelo <span class="text-rose-400">*</span></label>
+                                <input type="text" name="modelo" value="{{ old('modelo') }}" placeholder="Ex: FH 540, Constellation 24.280..." required class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                            </div>
+
+                            <!-- Ano Início -->
+                            <div>
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Ano Início</label>
+                                <input type="number" name="ano_inicio" value="{{ old('ano_inicio') }}" placeholder="Ex: 2015" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                            </div>
+
+                            <!-- Ano Fim -->
+                            <div>
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Ano Fim</label>
+                                <input type="number" name="ano_fim" value="{{ old('ano_fim') }}" placeholder="Ex: 2022" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                            </div>
+
+                            <!-- Descrição -->
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Descrição / Observações</label>
+                                <textarea name="descricao" rows="2" placeholder="Informações adicionais sobre o modelo..." class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400 resize-none">{{ old('descricao') }}</textarea>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end pt-1">
+                            <button type="submit" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#091322] font-extrabold text-xs">
+                                Salvar Modelo
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Listagem de Modelos Cadastrados -->
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-gray-300">Modelos Cadastrados ({{ count($modelos ?? []) }})</h4>
+                        @forelse($modelos ?? [] as $mod)
+                            <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center justify-between gap-3 {{ isset($mod->ativo) && !$mod->ativo ? 'opacity-50' : '' }}">
+                                <div class="min-w-0">
+                                    <h5 class="text-xs font-bold text-white truncate">{{ $mod->nome ?? $mod->modelo }}</h5>
+                                    <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                                        <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                                            🏭 {{ $mod->fabricante->nome ?? 'Sem Fabricante' }}
+                                        </span>
+                                        @if(isset($mod->ano_inicio) || isset($mod->ano_fim))
+                                            <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/5 text-gray-400 border border-white/10">
+                                                📅 {{ $mod->ano_inicio ?? '?' }} - {{ $mod->ano_fim ?? 'Atual' }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center gap-1.5 flex-shrink-0">
+                                    <form action="{{ route('modelos.toggle', $mod->id) }}" method="POST">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="px-2.5 py-1 rounded-lg text-xs font-bold transition {{ ($mod->ativo ?? true) ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' }}">
+                                            {{ ($mod->ativo ?? true) ? '🔴 Desligar' : '🟢 Ligar' }}
+                                        </button>
+                                    </form>
+
+                                    <form action="{{ route('modelos.destroy', $mod->id) }}" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir o modelo {{ $mod->nome ?? $mod->modelo }}?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="p-1.5 rounded-lg text-xs font-bold bg-rose-600/20 text-rose-400 border border-rose-500/30 hover:bg-rose-600/40 transition" title="Excluir Modelo">
+                                            🗑️
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="p-4 bg-white/5 rounded-xl text-center text-xs text-gray-400 border border-white/10">
+                                Nenhum modelo cadastrado.
+                            </div>
+                        @endforelse
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-300 mb-1">Nome do Modelo *</label>
-                        <input type="text" name="nome" required placeholder="Ex: FH 540, R 450..." class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
-                    </div>
-                    <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-                        <button type="button" onclick="toggleModal('modalNovoModelo')" class="px-4 py-2 rounded-xl text-xs font-bold text-gray-400 hover:text-white">Cancelar</button>
-                        <button type="submit" class="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#091322] font-extrabold text-xs">Salvar</button>
-                    </div>
-                </form>
+                </div>
+
+                <div class="p-4 border-t border-white/10 flex justify-end">
+                    <button type="button" onclick="toggleModal('modalNovoModelo')" class="px-4 py-2 text-xs font-bold text-gray-400 hover:text-white">Fechar</button>
+                </div>
             </div>
         </div>
 
-        <!-- MODAL: NOVA APLICAÇÃO -->
+        <!-- MODAL: GERENCIAR APLICAÇÕES -->
         <div id="modalNovaAplicacao" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-            <div class="bg-[#0c182e] border border-white/15 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div class="bg-[#0c182e] border border-white/15 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
                 <div class="p-5 border-b border-white/10 flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-white flex items-center gap-2">⚙️ Nova Aplicação</h3>
-                    <button onclick="toggleModal('modalNovaAplicacao')" class="text-gray-400 hover:text-white">&times;</button>
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">⚙️ Gerenciar Aplicações</h3>
+                    <button type="button" onclick="toggleModal('modalNovaAplicacao')" class="text-gray-400 hover:text-white">&times;</button>
                 </div>
-                <form action="{{ route('aplicacoes.store') }}" method="POST" class="p-5 space-y-4">
-                    @csrf
-                    <div>
-                        <label class="block text-xs font-bold text-gray-300 mb-1">Modelo Relacionado *</label>
-                        <select name="modelo_id" required class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
-                            <option value="">Selecione um Modelo</option>
-                            @foreach($modelos ?? [] as $mod)
-                                <option value="{{ $mod->id }}">{{ $mod->nome }}</option>
-                            @endforeach
-                        </select>
+                
+                <div class="p-5 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+                    <!-- Formulário de Cadastro de Aplicação -->
+                    <form action="{{ route('aplicacoes.store') }}" method="POST" class="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3">
+                        @csrf
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Categoria *</label>
+                                <select id="app_categoria_id" onchange="filtrarFabricantesAplicacao()" required class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                                    <option value="">Selecione...</option>
+                                    @foreach($categorias ?? [] as $cat)
+                                        <option value="{{ $cat->id }}">{{ $cat->nome }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Fabricante *</label>
+                                <select id="app_fabricante_id" onchange="filtrarModelosAplicacao()" required disabled class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400 disabled:opacity-50">
+                                    <option value="">Aguardando Categoria</option>
+                                    @foreach($fabricantes ?? [] as $fab)
+                                        <option value="{{ $fab->id }}" data-categoria="{{ $fab->categoria_id ?? '' }}" class="hidden">{{ $fab->nome }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-gray-300 mb-1">Modelo *</label>
+                                <select name="modelo_id" id="app_modelo_id" required disabled class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400 disabled:opacity-50">
+                                    <option value="">Aguardando Fabricante</option>
+                                    @foreach($modelos ?? [] as $mod)
+                                        <option value="{{ $mod->id }}" data-fabricante="{{ $mod->fabricante_id ?? '' }}" class="hidden">{{ $mod->nome ?? $mod->modelo }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-300 mb-1">Componente / Descrição da Aplicação *</label>
+                            <input type="text" name="componente" required placeholder="Ex: Caixas de Câmbio VT2014, Cubo Traseiro..." class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                        </div>
+
+                        <div class="flex justify-end pt-1">
+                            <button type="submit" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#091322] font-extrabold text-xs">
+                                Salvar Aplicação
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Listagem de Aplicações Cadastradas -->
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-gray-300">Aplicações Cadastradas ({{ count($aplicacoes ?? []) }})</h4>
+                        @forelse($aplicacoes ?? [] as $app)
+                            <div class="bg-white/5 border border-white/10 rounded-xl p-3 flex items-center justify-between gap-3 {{ isset($app->ativo) && !$app->ativo ? 'opacity-50' : '' }}">
+                                <div class="min-w-0">
+                                    <h5 class="text-xs font-bold text-white truncate">{{ $app->componente ?? ($app->descricao ?? 'Sem descrição') }}</h5>
+                                    <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                                        @if(isset($app->modelo))
+                                            <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                                                🚚 {{ $app->modelo->nome ?? ($app->modelo->modelo ?? 'Sem Modelo') }}
+                                            </span>
+                                        @endif
+                                        @if(isset($app->modelo->fabricante))
+                                            <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/5 text-gray-400 border border-white/10">
+                                                🏭 {{ $app->modelo->fabricante->nome }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center gap-1.5 flex-shrink-0">
+                                    <!-- Toggle Ativo/Inativo -->
+                                    <form action="{{ route('aplicacoes.toggle', $app->id) }}" method="POST">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="px-2.5 py-1 rounded-lg text-xs font-bold transition {{ ($app->ativo ?? true) ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' }}">
+                                            {{ ($app->ativo ?? true) ? '🔴 Desligar' : '🟢 Ligar' }}
+                                        </button>
+                                    </form>
+
+                                    <!-- Botão Deletar -->
+                                    <form action="{{ route('aplicacoes.destroy', $app->id) }}" method="POST" onsubmit="return confirm('Tem certeza que deseja excluir a aplicação {{ $app->componente ?? $app->descricao }}?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="p-1.5 rounded-lg text-xs font-bold bg-rose-600/20 text-rose-400 border border-rose-500/30 hover:bg-rose-600/40 transition" title="Excluir Aplicação">
+                                            🗑️
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="p-4 bg-white/5 rounded-xl text-center text-xs text-gray-400 border border-white/10">
+                                Nenhuma aplicação cadastrada.
+                            </div>
+                        @endforelse
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-300 mb-1">Componente / Posição *</label>
-                        <input type="text" name="componente" required placeholder="Ex: Eixo Dianteiro, Cubo Traseiro..." class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-300 mb-1">Descrição Técnica *</label>
-                        <input type="text" name="descricao" required placeholder="Ex: Kit Rolamento Especial FERSA" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
-                    </div>
-                    <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-                        <button type="button" onclick="toggleModal('modalNovaAplicacao')" class="px-4 py-2 rounded-xl text-xs font-bold text-gray-400 hover:text-white">Cancelar</button>
-                        <button type="submit" class="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#091322] font-extrabold text-xs">Salvar</button>
-                    </div>
-                </form>
+                </div>
+
+                <div class="p-4 border-t border-white/10 flex justify-end">
+                    <button type="button" onclick="toggleModal('modalNovaAplicacao')" class="px-4 py-2 text-xs font-bold text-gray-400 hover:text-white">Fechar</button>
+                </div>
             </div>
         </div>
 
         <!-- MODAL: NOVO DOCUMENTO -->
         <div id="modalNovoDocumento" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-            <div class="bg-[#0c182e] border border-white/15 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl">
+            <div class="bg-[#0c182e] border border-white/15 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
                 <div class="p-5 border-b border-white/10 flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-white flex items-center gap-2">📄 Cadastrar Novo Documento</h3>
-                    <button onclick="toggleModal('modalNovoDocumento')" class="text-gray-400 hover:text-white">&times;</button>
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">📄 Upload de Documento Técnico</h3>
+                    <button type="button" onclick="toggleModal('modalNovoDocumento')" class="text-gray-400 hover:text-white">&times;</button>
                 </div>
-                <form action="{{ route('documentos.store') }}" method="POST" enctype="multipart/form-data" class="p-5 space-y-4">
+
+                <form action="{{ route('documentos.store') }}" method="POST" enctype="multipart/form-data" class="p-5 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
                     @csrf
+                    
+                    <!-- Título do Documento -->
                     <div>
-                        <label class="block text-xs font-bold text-gray-300 mb-1">Título do Documento *</label>
-                        <input type="text" name="titulo" required placeholder="Ex: Manual de Montagem Rolamento R-800" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
+                        <label class="block text-xs font-bold text-gray-300 mb-1">Título do Documento <span class="text-rose-400">*</span></label>
+                        <input type="text" name="titulo" required placeholder="Ex: Manual Técnico de Montagem" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <!-- Vínculos Técnicos (Encadeados) -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white/5 p-4 rounded-xl border border-white/10">
+                        <div class="md:col-span-2">
+                            <span class="text-[11px] font-bold text-sky-400 uppercase tracking-wider block mb-1">Vínculos Técnicos do Documento</span>
+                        </div>
+
+                        <!-- 1. Categoria -->
                         <div>
-                            <label class="block text-xs font-bold text-gray-300 mb-1">Categoria *</label>
-                            <select name="categoria_id" required class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
-                                <option value="">Selecione a Categoria</option>
-                                @foreach($categorias ?? [] as $cat)
+                            <label class="block text-xs font-bold text-gray-300 mb-1">Categoria <span class="text-rose-400">*</span></label>
+                            <select name="categoria_id" id="doc_categoria_id" onchange="filtrarFabricantesDoc()" required class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                                <option value="" disabled selected>Selecione Categoria...</option>
+                                @foreach($categoriasAtivas ?? ($categorias ?? []) as $cat)
                                     <option value="{{ $cat->id }}">{{ $cat->nome }}</option>
                                 @endforeach
                             </select>
                         </div>
-                        <div>
-                            <label class="block text-xs font-bold text-gray-300 mb-1">Versão *</label>
-                            <input type="text" name="versao" value="1.0" required placeholder="Ex: 1.0, 2.1" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
-                        </div>
-                    </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <!-- 2. Fabricante -->
                         <div>
                             <label class="block text-xs font-bold text-gray-300 mb-1">Fabricante</label>
-                            <select name="fabricante_id" class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
-                                <option value="">Opcional</option>
+                            <select name="fabricante_id" id="doc_fabricante_id" onchange="filtrarModelosDoc()" disabled class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400 disabled:opacity-50">
+                                <option value="" selected>Selecione a Categoria primeiro...</option>
                                 @foreach($fabricantes ?? [] as $fab)
-                                    <option value="{{ $fab->id }}">{{ $fab->nome }}</option>
+                                    <option value="{{ $fab->id }}" data-categoria="{{ $fab->categoria_id ?? '' }}" class="hidden">{{ $fab->nome }}</option>
                                 @endforeach
                             </select>
                         </div>
+
+                        <!-- 3. Modelo -->
                         <div>
                             <label class="block text-xs font-bold text-gray-300 mb-1">Modelo</label>
-                            <select name="modelo_id" class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
-                                <option value="">Opcional</option>
+                            <select name="modelo_id" id="doc_modelo_id" onchange="filtrarAplicacoesDoc()" disabled class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400 disabled:opacity-50">
+                                <option value="" selected>Selecione o Fabricante primeiro...</option>
                                 @foreach($modelos ?? [] as $mod)
-                                    <option value="{{ $mod->id }}">{{ $mod->nome }}</option>
+                                    <option value="{{ $mod->id }}" data-fabricante="{{ $mod->fabricante_id ?? '' }}" class="hidden">{{ $mod->nome ?? $mod->modelo }}</option>
                                 @endforeach
                             </select>
                         </div>
+
+                        <!-- 4. Aplicação -->
                         <div>
                             <label class="block text-xs font-bold text-gray-300 mb-1">Aplicação</label>
-                            <select name="aplicacao_id" class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-sky-400">
-                                <option value="">Opcional</option>
+                            <select name="aplicacao_id" id="doc_aplicacao_id" disabled class="w-full bg-[#091322] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400 disabled:opacity-50">
+                                <option value="" selected>Selecione o Modelo primeiro...</option>
                                 @foreach($aplicacoes ?? [] as $app)
-                                    <option value="{{ $app->id }}">{{ $app->componente ?? $app->descricao }}</option>
+                                    <option value="{{ $app->id }}" data-modelo="{{ $app->modelo_id ?? '' }}" class="hidden">{{ $app->componente ?? $app->descricao }}</option>
                                 @endforeach
                             </select>
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-bold text-gray-300 mb-1">Arquivo PDF / Anexo *</label>
-                        <input type="file" name="arquivo" required accept=".pdf,.doc,.docx" class="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-sky-500/10 file:text-sky-400 hover:file:bg-sky-500/20">
+                    <!-- Dados Adicionais -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-300 mb-1">Versão <span class="text-rose-400">*</span></label>
+                            <input type="text" name="versao" required placeholder="Ex: 1.0" value="1.0" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-300 mb-1">Data do Documento</label>
+                            <input type="date" name="data_documento" value="{{ date('Y-m-d') }}" class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400">
+                        </div>
                     </div>
 
-                    <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-                        <button type="button" onclick="toggleModal('modalNovoDocumento')" class="px-4 py-2 rounded-xl text-xs font-bold text-gray-400 hover:text-white">Cancelar</button>
-                        <button type="submit" class="px-5 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#091322] font-extrabold text-xs shadow-lg shadow-sky-500/20">Enviar Documento</button>
+                    <!-- Upload do Arquivo -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-300 mb-1">Arquivo <span class="text-rose-400">*</span></label>
+                        <input type="file" name="arquivo" required class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-sky-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sky-500/20 file:text-sky-400">
+                    </div>
+
+                    <!-- Descrição Opcional -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-300 mb-1">Descrição / Observações</label>
+                        <textarea name="descricao" rows="2" placeholder="Informações complementares do documento..." class="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-400 resize-none"></textarea>
+                    </div>
+
+                    <div class="pt-2 border-t border-white/10 flex justify-end gap-2">
+                        <button type="button" onclick="toggleModal('modalNovoDocumento')" class="px-4 py-2 text-xs font-bold text-gray-400 hover:text-white">Cancelar</button>
+                        <button type="submit" class="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#091322] font-extrabold text-xs">Enviar Documento</button>
                     </div>
                 </form>
             </div>
@@ -348,13 +648,128 @@
 
     @endif
 
+    <!-- JAVASCRIPT GLOBAL -->
     <script>
-        function toggleModal(id) {
-            const modal = document.getElementById(id);
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
             if (modal) {
                 modal.classList.toggle('hidden');
             }
         }
+
+        function filtrarFabricantesModelo() {
+            const catId = document.getElementById('mod_categoria_id').value;
+            const fabSelect = document.getElementById('mod_fabricante_id');
+            const options = fabSelect.querySelectorAll('option');
+
+            fabSelect.value = '';
+            fabSelect.disabled = !catId;
+
+            options.forEach(opt => {
+                if (!opt.value) return;
+                if (opt.getAttribute('data-categoria') === catId) {
+                    opt.classList.remove('hidden');
+                } else {
+                    opt.classList.add('hidden');
+                }
+            });
+        }
+
+        function filtrarFabricantesAplicacao() {
+            const catId = document.getElementById('app_categoria_id').value;
+            const fabSelect = document.getElementById('app_fabricante_id');
+            const options = fabSelect.querySelectorAll('option');
+
+            fabSelect.value = '';
+            fabSelect.disabled = !catId;
+
+            options.forEach(opt => {
+                if (!opt.value) return;
+                if (opt.getAttribute('data-categoria') === catId) {
+                    opt.classList.remove('hidden');
+                } else {
+                    opt.classList.add('hidden');
+                }
+            });
+
+            filtrarModelosAplicacao();
+        }
+
+        function filtrarModelosAplicacao() {
+            const fabId = document.getElementById('app_fabricante_id').value;
+            const modSelect = document.getElementById('app_modelo_id');
+            const options = modSelect.querySelectorAll('option');
+
+            modSelect.value = '';
+            modSelect.disabled = !fabId;
+
+            options.forEach(opt => {
+                if (!opt.value) return;
+                if (opt.getAttribute('data-fabricante') === fabId) {
+                    opt.classList.remove('hidden');
+                } else {
+                    opt.classList.add('hidden');
+                }
+            });
+        }
+        function filtrarFabricantesDoc() {
+    const catId = document.getElementById('doc_categoria_id').value;
+    const fabSelect = document.getElementById('doc_fabricante_id');
+    const options = fabSelect.querySelectorAll('option');
+
+    fabSelect.value = '';
+    fabSelect.disabled = !catId;
+
+    options.forEach(opt => {
+        if (!opt.value) return;
+        if (opt.getAttribute('data-categoria') === catId) {
+            opt.classList.remove('hidden');
+        } else {
+            opt.classList.add('hidden');
+        }
+    });
+
+    filtrarModelosDoc();
+    }
+
+    function filtrarModelosDoc() {
+        const fabId = document.getElementById('doc_fabricante_id').value;
+        const modSelect = document.getElementById('doc_modelo_id');
+        const options = modSelect.querySelectorAll('option');
+
+        modSelect.value = '';
+        modSelect.disabled = !fabId;
+
+        options.forEach(opt => {
+            if (!opt.value) return;
+            if (opt.getAttribute('data-fabricante') === fabId) {
+                opt.classList.remove('hidden');
+            } else {
+                opt.classList.add('hidden');
+            }
+        });
+
+        filtrarAplicacoesDoc();
+    }
+
+    function filtrarAplicacoesDoc() {
+        const modId = document.getElementById('doc_modelo_id').value;
+        const appSelect = document.getElementById('doc_aplicacao_id');
+        const options = appSelect.querySelectorAll('option');
+
+        appSelect.value = '';
+        appSelect.disabled = !modId;
+
+        options.forEach(opt => {
+            if (!opt.value) return;
+            if (opt.getAttribute('data-modelo') === modId) {
+                opt.classList.remove('hidden');
+            } else {
+                opt.classList.add('hidden');
+            }
+        });
+    }
     </script>
+    @include('components.agente-flutuante')
 </body>
 </html>

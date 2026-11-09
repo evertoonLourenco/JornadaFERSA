@@ -20,7 +20,7 @@ class Aplicacao extends Model
         'lado',
         'descricao',
         'observacao',
-        'ativo'
+        'ativo',
     ];
 
     /**

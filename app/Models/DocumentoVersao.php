@@ -25,9 +25,4 @@ class DocumentoVersao extends Model
     {
         return $this->belongsTo(Documento::class, 'documento_id');
     }
-
-    public function usuario()
-    {
-        return $this->belongsTo(Usuario::class, 'usuario_id');
-    }
 }

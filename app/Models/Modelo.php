@@ -12,10 +12,13 @@ class Modelo extends Model
     protected $table = 'modelos';
 
     protected $fillable = [
-        'modelo',        // Se no seu banco a coluna for 'modelo'
-        'nome',          // Se a coluna for 'nome' (mantenha a que existir no seu banco)
         'fabricante_id',
         'tipo_id',
+        'modelo',
+        'ano_inicio',
+        'ano_fim',
+        'descricao',
+        'ativo',
     ];
 
     public function fabricante()
@@ -31,5 +34,10 @@ class Modelo extends Model
     public function aplicacoes()
     {
         return $this->hasMany(Aplicacao::class, 'modelo_id');
+    }
+
+    public function documentos()
+    {
+        return $this->hasMany(Documento::class, 'modelo_id');
     }
 }

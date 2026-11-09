@@ -316,5 +316,6 @@
             });
         });
     </script>
+    @include('components.agente-flutuante')
 </body>
 </html>

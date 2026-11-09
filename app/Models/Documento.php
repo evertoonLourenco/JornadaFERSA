@@ -14,10 +14,15 @@ class Documento extends Model
     protected $fillable = [
         'titulo',
         'categoria_id',
+        'fabricante_id',
+        'modelo_id',
+        'aplicacao_id',
         'descricao',
         'observacao',
-        'fabricante_id',
         'usuario_id',
+        'nome_arquivo',
+        'caminho_arquivo',
+        'tamanho_bytes',
         'versao_atual_id',
     ];
 
@@ -31,19 +36,14 @@ class Documento extends Model
         return $this->belongsTo(Fabricante::class, 'fabricante_id');
     }
 
-    public function usuario()
-    {
-        return $this->belongsTo(Usuario::class, 'usuario_id');
-    }
-
     public function modelos()
     {
-        return $this->belongsToMany(Modelo::class, 'documento_modelo', 'documento_id', 'modelo_id');
+        return $this->belongsToMany(Modelo::class, 'documento_modelo', 'documento_id', 'modelo_id')->withTimestamps();
     }
 
     public function aplicacoes()
     {
-        return $this->belongsToMany(Aplicacao::class, 'documento_aplicacao', 'documento_id', 'aplicacao_id');
+        return $this->belongsToMany(Aplicacao::class, 'documento_aplicacao', 'documento_id', 'aplicacao_id')->withTimestamps();
     }
 
     public function versoes()
@@ -54,5 +54,25 @@ class Documento extends Model
     public function versaoAtual()
     {
         return $this->belongsTo(DocumentoVersao::class, 'versao_atual_id');
+    }
+
+    public function getModeloAttribute()
+    {
+        return $this->modelos->first();
+    }
+
+    public function getAplicacaoAttribute()
+    {
+        return $this->aplicacoes->first();
+    }
+
+    public function getVersaoAttribute()
+    {
+        return $this->versaoAtual->versao ?? '1.0';
+    }
+
+    public function getArquivoAttribute()
+    {
+        return $this->caminho_arquivo ?? ($this->versaoAtual->caminho_arquivo ?? '');
     }
 }
